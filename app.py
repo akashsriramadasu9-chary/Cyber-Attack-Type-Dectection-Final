@@ -6,7 +6,7 @@ import io
 # -------------------------------
 # Load Model & Scaler
 # -------------------------------
-model = joblib.load("attack_model(5).pkl")
+model = joblib.load("attack_model (5).pkl")
 scaler = joblib.load("scaler.pkl")
 
 st.title("🔐 Cyber Attack Detection System")
