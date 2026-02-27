@@ -1,43 +1,72 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib
+import io
 
-st.title("Cyber Attack Detection System")
+# -------------------------------
+# Load Model & Scaler
+# -------------------------------
+model = joblib.load("attack_model.pkl")
+scaler = joblib.load("scaler.pkl")
 
-# Load all objects
-@st.cache_resource
-def load_objects():
-    model = pickle.load(open("attack_model.pkl", "rb"))
-    scaler = pickle.load(open("scaler.pkl", "rb"))
-    encoder = pickle.load(open("encoder.pkl", "rb"))
-    return model, scaler, encoder
+st.title("🔐 Cyber Attack Detection System")
 
-model, scaler, encoder = load_objects()
+st.write("Upload a CSV file to analyze network activity.")
 
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+# -------------------------------
+# File Upload
+# -------------------------------
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
-if uploaded_file:
+if uploaded_file is not None:
+    
     df = pd.read_csv(uploaded_file)
-    st.write("Uploaded Data", df.head())
+    
+    st.subheader("📄 Uploaded Data Preview")
+    st.dataframe(df.head())
 
-    # Apply encoding
-    df_encoded = encoder.transform(df)
+    try:
+        # -------------------------------
+        # Feature Check
+        # -------------------------------
+        if df.shape[1] != model.n_features_in_:
+            st.error(f"Expected {model.n_features_in_} features but got {df.shape[1]}")
+        else:
+            # -------------------------------
+            # Scaling
+            # -------------------------------
+            X_scaled = scaler.transform(df)
 
-    # Apply scaling
-    df_scaled = scaler.transform(df_encoded)
+            # -------------------------------
+            # Prediction
+            # -------------------------------
+            predictions = model.predict(X_scaled)
+            probabilities = model.predict_proba(X_scaled)
 
-    # Prediction
-    predictions = model.predict(df_scaled)
+            df["Prediction"] = predictions
+            df["Confidence"] = probabilities.max(axis=1)
 
-    df["Predicted_Attack"] = predictions
+            st.subheader("📊 Prediction Results")
+            st.dataframe(df.head())
 
-    st.write("Prediction Results", df.head())
+            # -------------------------------
+            # Summary
+            # -------------------------------
+            st.subheader("📈 Attack Distribution")
+            st.bar_chart(df["Prediction"].value_counts())
 
-    csv = df.to_csv(index=False).encode("utf-8")
+            # -------------------------------
+            # Download Report
+            # -------------------------------
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False)
 
-    st.download_button(
-        "Download Report",
-        csv,
-        "attack_report.csv",
-        "text/csv"
-    )
+            st.download_button(
+                label="⬇ Download Full Report",
+                data=csv_buffer.getvalue(),
+                file_name="cyber_attack_report.csv",
+                mime="text/csv"
+            )
+
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
